@@ -8,16 +8,17 @@
 
 #include "proxy_channel.h"
 #include "log.h"
-#include "conn.h"
 
 struct proxy_channel_t* proxy_channel_create(CFSocketNativeHandle client_native_handle) {
     struct proxy_channel_t *pchan = (struct proxy_channel_t *) calloc(1, sizeof(struct proxy_channel_t));
-    log_trace("%p pchan: alloc, client=%p, server=%p\n", pchan, &(pchan->client), &(pchan->server));
 
-    pchan->client.is_client = true;
-    pchan->server.is_client = false;
-    conn_init(&(pchan->client), client_native_handle);
+    pchan->client = client_create(client_native_handle);
+    pchan->client->proxy = pchan;
 
+    pchan->server = server_create();
+    pchan->server->proxy = pchan;
+
+    log_trace("%p pchan: alloc, client=%p, server=%p\n", pchan, pchan->client, pchan->server);
     return pchan;
 }
 
@@ -27,45 +28,71 @@ void proxy_channel_free(struct proxy_channel_t** pchan) {
     (*pchan) = NULL;
 }
 
-void proxy_channel_signal_end(struct conn_t* conn) {
-    log_trace("%p conn: signaled eof => %p\n", conn);
+void proxy_signal_server_eof(struct server_conn_t* server) {
+    log_trace("%p server signal eof\n", server);
 }
 
-void proxy_channel_signal_request_receievd(struct conn_t* conn) {
-    // For the client we should start resolve the server
-    if (conn->is_client) {
-        assert(conn->incoming_message != NULL);
-        struct proxy_channel_t *pchan = PCHAN(conn);
+void proxy_signal_client_eof(struct client_conn_t* client) {
+    log_trace("%p client signal eof\n", client);
+}
 
-        CFURLRef server_url = CFHTTPMessageCopyRequestURL(conn->incoming_message);
-        CFStringRef server_hostname = CFURLCopyHostName(server_url);
-        CFStringRef scheme = CFURLCopyScheme(server_url);
-        CFHostRef host = CFHostCreateWithName(kCFAllocatorDefault, server_hostname);
+void proxy_signal_server_error(struct server_conn_t* server, CFStreamError error) {
+    log_trace("%p server error %p\n", server, error);
+}
 
-        // Pass of `host` for the connection to resolve it.
-        pchan->server.port_nbr = CFURLGetPortNumber(server_url);
-        if (pchan->server.port_nbr == -1) {
-            pchan->server.port_nbr = CFStringCompare(scheme, CFSTR("http"), kCFCompareCaseInsensitive) == kCFCompareEqualTo ? 80 : 433;
-        }
+void proxy_signal_client_error(struct client_conn_t* client, CFStreamError error) {
+    log_trace("%p client error %p\n", client, error);
 
-        conn_start_resolve(&pchan->server, host);
+    /*
 
-        CFRelease(scheme);
-        CFRelease(server_hostname);
-        CFRelease(server_url);
-        // NOTE! host is released in `conn_domain_resolution_completed`
+     CFStreamError error = CFWriteStreamGetError(stream);
+
+     if (error.domain == kCFStreamErrorDomainPOSIX) {
+        log_warn("Error occured: %s\n", strerror(error.error));
+     } else {
+        log_error("UNHANDLED ERROR: domain: %d\n", error.domain);
+     }
+
+     */
+}
+
+void proxy_signal_server_req_recv(struct server_conn_t *server) {
+    log_trace("%p server recv HTTP complete message\n", server);
+
+    CFHTTPMessageSetHeaderFieldValue(server->incoming_message, CFSTR("Server"), CFSTR("dproxy"));
+
+    CFDataRef data = CFHTTPMessageCopySerializedMessage(server->incoming_message);
+    CFIndex length = CFDataGetLength(data);
+    UInt8 buff[length];
+    CFDataGetBytes(data, CFRangeMake(0, length), buff);
+
+    CFWriteStreamWrite(P_CHAN(server)->client->writeStream, buff, length);
+    CFRelease(data);
+}
+
+void proxy_signal_client_req_recv(struct client_conn_t *client) {
+    log_trace("%p client rect HTTP complete message\n", client);
+
+    assert(client->incoming_message != NULL);
+    struct proxy_channel_t *p_chan = P_CHAN(client);
+
+    CFURLRef server_url = CFHTTPMessageCopyRequestURL(client->incoming_message);
+    CFStringRef server_hostname = CFURLCopyHostName(server_url);
+    CFStringRef scheme = CFURLCopyScheme(server_url);
+
+    CFHostRef host = CFHostCreateWithName(kCFAllocatorDefault, server_hostname);
+    SInt32 port_nbr = CFURLGetPortNumber(server_url);
+    
+    p_chan->server->host = host;
+    p_chan->server->port_nbr = port_nbr;
+
+    if (p_chan->server->port_nbr == -1) {
+        p_chan->server->port_nbr = CFStringCompare(scheme, CFSTR("http"), kCFCompareCaseInsensitive) == kCFCompareEqualTo ? 80 : 433;
     }
 
-    // For the server, we should tell the client that we have a full response received
-    if (!conn->is_client) {
-        CFHTTPMessageSetHeaderFieldValue(conn->incoming_message, CFSTR("Server"), CFSTR("dproxy"));
+    server_start_resolve(p_chan->server);
 
-        CFDataRef data = CFHTTPMessageCopySerializedMessage(conn->incoming_message);
-        CFIndex length = CFDataGetLength(data);
-        UInt8 buff[length];
-        CFDataGetBytes(data, CFRangeMake(0, length), buff);
-
-        CFWriteStreamWrite(PCHAN(conn)->client.writeStream, buff, length);
-        CFRelease(data);
-    }
+    CFRelease(scheme);
+    CFRelease(server_hostname);
+    CFRelease(server_url);
 }
