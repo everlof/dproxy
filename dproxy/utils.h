@@ -13,4 +13,6 @@
 
 char* CFStreamEventTypeString(CFStreamEventType);
 
+void dump_hex(char *desc, void *addr, int len);
+
 #endif /* utils_h */

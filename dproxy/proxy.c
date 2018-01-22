@@ -1,16 +1,14 @@
+#include "log.h"
 #include "proxy.h"
 #include "proxy_channel.h"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <CFNetwork/CFNetwork.h>
 
-#include "log.h"
-
 #include <stdio.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-
 
 // https://developer.apple.com/library/content/samplecode/MiniSOAP/Listings/TCPServer_m.html
 // https://developer.apple.com/library/content/documentation/Networking/Conceptual/CFNetwork/CFStreamTasks/CFStreamTasks.html
@@ -53,5 +51,5 @@ void proxy_start(int port)
     CFRunLoopSourceRef socketSource = CFSocketCreateRunLoopSource(kCFAllocatorDefault, serverSocket, 0);
     CFRunLoopAddSource(CFRunLoopGetCurrent(), socketSource, kCFRunLoopDefaultMode);
 
-    log_trace("server running on port=%d\n", port);
+    log_info("server running on port=%d\n", port);
 }

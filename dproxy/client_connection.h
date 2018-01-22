@@ -12,14 +12,16 @@
 #include <CFNetwork/CFNetwork.h>
 #include <netinet/in.h>
 
+struct proxy_channel_t;
+
 struct client_conn_t {
-    void *proxy;
+    struct proxy_channel_t *proxy;
 
     CFSocketNativeHandle fd;
 
     UInt8 read_buf[BUFSIZ];
-    CFReadStreamRef readStream;
-    CFWriteStreamRef writeStream;
+    CFReadStreamRef read_stream;
+    CFWriteStreamRef write_stream;
 
     bool can_accept_bytes;
 
@@ -30,10 +32,16 @@ struct client_conn_t {
     CFStreamClientContext stream_context;
 
     CFHTTPMessageRef incoming_message;
+
     CFHTTPMessageRef outgoing_message;
+    CFDataRef        outgoing_message_data;
+    CFIndex          outgoing_message_data_i;
 };
 
 struct client_conn_t* client_create(CFSocketNativeHandle fd);
 void client_free(struct client_conn_t **client);
+
+void client_write_message(struct client_conn_t *client, CFHTTPMessageRef message);
+void client_write_if_possible(struct client_conn_t *client);
 
 #endif /* client_connection_h */

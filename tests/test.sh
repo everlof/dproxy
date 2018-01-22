@@ -3,7 +3,7 @@
 # http://httpbin.org/ip
 
 direct_output=`curl -s http://httpbin.org/ip`
-proxy_output=`curl -s --proxy1.0 127.0.0.1:49101 http://httpbin.org/ip`
+proxy_output=`curl -s --proxy1.0 127.0.0.1:1080 http://httpbin.org/ip`
 
 diff <(echo -e "$direct_output") <(echo -e "$proxy_output")
 result=$?

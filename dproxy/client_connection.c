@@ -43,11 +43,11 @@ struct client_conn_t* client_create(CFSocketNativeHandle fd) {
         log_trace("%p conn: client ip connected => %s:%d\n", client, client->remote_addr_str, ((struct sockaddr_in *)name)->sin_port);
     }
 
-    CFStreamCreatePairWithSocket(kCFAllocatorDefault, client->fd, &(client->readStream), &(client->writeStream));
+    CFStreamCreatePairWithSocket(kCFAllocatorDefault, client->fd, &(client->read_stream), &(client->write_stream));
 
-    if (client->readStream && client->writeStream) {
-        CFReadStreamSetProperty(client->readStream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
-        CFWriteStreamSetProperty(client->writeStream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
+    if (client->read_stream && client->write_stream) {
+        CFReadStreamSetProperty(client->read_stream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
+        CFWriteStreamSetProperty(client->write_stream, kCFStreamPropertyShouldCloseNativeSocket, kCFBooleanTrue);
     }
 
     client->stream_context.version = 0;
@@ -56,7 +56,7 @@ struct client_conn_t* client_create(CFSocketNativeHandle fd) {
     client->stream_context.release = nil;
     client->stream_context.copyDescription = nil;
 
-    CFWriteStreamSetClient(client->writeStream,
+    CFWriteStreamSetClient(client->write_stream,
                            kCFStreamEventOpenCompleted     |
                            kCFStreamEventErrorOccurred     |
                            kCFStreamEventEndEncountered    |
@@ -64,10 +64,10 @@ struct client_conn_t* client_create(CFSocketNativeHandle fd) {
                            &client_write_stream_callback,
                            &client->stream_context);
 
-    CFWriteStreamScheduleWithRunLoop(client->writeStream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-    CFWriteStreamOpen(client->writeStream);
+    CFWriteStreamScheduleWithRunLoop(client->write_stream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+    CFWriteStreamOpen(client->write_stream);
 
-    CFReadStreamSetClient(client->readStream,
+    CFReadStreamSetClient(client->read_stream,
                           kCFStreamEventOpenCompleted      |
                           kCFStreamEventErrorOccurred      |
                           kCFStreamEventEndEncountered     |
@@ -75,22 +75,75 @@ struct client_conn_t* client_create(CFSocketNativeHandle fd) {
                           &client_read_stream_callback,
                           &client->stream_context);
 
-    CFReadStreamScheduleWithRunLoop(client->readStream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-    CFReadStreamOpen(client->readStream);
+    CFReadStreamScheduleWithRunLoop(client->read_stream, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+    CFReadStreamOpen(client->read_stream);
 
     return client;
 }
 
 void client_free(struct client_conn_t **client) {
-    CFReadStreamSetClient((*client)->readStream, kCFStreamEventNone, NULL, NULL);
-    CFReadStreamClose((*client)->readStream);
+    CFReadStreamSetClient((*client)->read_stream, kCFStreamEventNone, NULL, NULL);
+    CFReadStreamClose((*client)->read_stream);
 
-    CFWriteStreamSetClient((*client)->writeStream, kCFStreamEventNone, NULL, NULL);
-    CFWriteStreamClose((*client)->writeStream);
+    CFWriteStreamSetClient((*client)->write_stream, kCFStreamEventNone, NULL, NULL);
+    CFWriteStreamClose((*client)->write_stream);
 
     log_trace("%p client free\n", client);
     free((*client));
     (*client) = NULL;
+}
+
+void client_write_message(struct client_conn_t *client, CFHTTPMessageRef message) {
+    log_trace("%p client\n", client);
+    client->outgoing_message_data = CFHTTPMessageCopySerializedMessage(message);
+    client->outgoing_message_data_i = 0;
+    log_debug("%p client constructed buffer of %d bytes for sending\n", client, CFDataGetLength(client->outgoing_message_data));
+    client_write_if_possible(client);
+}
+
+void client_write_if_possible(struct client_conn_t *client) {
+    log_trace("%p client\n", client);
+
+    if (!client->outgoing_message_data) {
+        log_trace("%p client: no outgoing message-data\n");
+        return;
+    }
+
+    if (!client->can_accept_bytes) {
+        log_trace("%p client: can't accept byte yet\n");
+        return;
+    }
+
+    if (client->proxy->state != CLIENT_SENDING) {
+        proxy_state(client->proxy, CLIENT_SENDING);
+    }
+
+    const UInt8 *buff = client->outgoing_message_data_i + CFDataGetBytePtr(client->outgoing_message_data);
+    CFIndex bytes_left = CFDataGetLength(client->outgoing_message_data) - client->outgoing_message_data_i;
+
+    // Write
+    CFIndex bytes_written = CFWriteStreamWrite(client->write_stream, buff, bytes_left);
+
+    if (log_get_level() == LOG_TRACE) {
+        dump_hex("client write", (void*) buff, (int) bytes_written);
+    }
+
+    client->outgoing_message_data_i += bytes_written;
+
+    log_debug("%p client: %d bytes written, %d total bytes written of %d\n",
+              client,
+              bytes_written,
+              client->outgoing_message_data_i,
+              CFDataGetLength(client->outgoing_message_data));
+
+    if (CFDataGetLength(client->outgoing_message_data) == client->outgoing_message_data_i) {
+        log_debug("%p client: full response sent back to client\n");
+        client->outgoing_message_data = NULL;
+        client->outgoing_message_data_i = 0;
+        proxy_state(client->proxy, COMPLETED);
+    }
+
+    client->can_accept_bytes = false;
 }
 
 static void client_read_stream_callback(CFReadStreamRef stream, CFStreamEventType type, void *info) {
@@ -99,24 +152,40 @@ static void client_read_stream_callback(CFReadStreamRef stream, CFStreamEventTyp
 
     switch (type) {
         case kCFStreamEventHasBytesAvailable:
+            if (client->proxy->state != AVAILABLE && client->proxy->state != COMPLETED) {
+                log_warn("%p client: haven't fully processed last request...\n");
+            }
+
             if (client->incoming_message == nil) {
+                proxy_state(client->proxy, CLIENT_READING);
                 client->incoming_message = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, true);
             }
 
             memset(client->read_buf, 0, sizeof(client->read_buf));
             CFIndex nbr_read = CFReadStreamRead(stream, client->read_buf, sizeof(client->read_buf));
 
-            if (!CFHTTPMessageAppendBytes(client->incoming_message, client->read_buf, nbr_read)) {
+            if (log_get_level() == LOG_TRACE) {
+                if (nbr_read > 0) {
+                    dump_hex("client read", client->read_buf, (int) nbr_read);
+                } else {
+                    log_trace("read 0 bytes\n");
+                }
+            }
+
+            if (nbr_read > 0 && !CFHTTPMessageAppendBytes(client->incoming_message, client->read_buf, nbr_read)) {
                 log_error("couldn't append bytes...\n");
             }
 
-            if (CFHTTPMessageIsHeaderComplete(client->incoming_message)) {
+            if (nbr_read == 0) {
+                // zero bytes - it was closed - will be handled in `kCFStreamEventEndEncountered`
+            } else if (!CFReadStreamHasBytesAvailable(stream)) {
                 proxy_signal_client_req_recv(client);
+            } else {
+                log_trace("%p client: more bytes in pipe\n", client);
             }
 
             break;
         case kCFStreamEventErrorOccurred:
-            log_debug("kCFStreamEventErrorOccurred\n");
             proxy_signal_client_error(client, CFReadStreamGetError(stream));
             break;
         case kCFStreamEventEndEncountered:
@@ -134,9 +203,9 @@ static void client_write_stream_callback(CFWriteStreamRef stream, CFStreamEventT
     switch (type) {
         case kCFStreamEventCanAcceptBytes:
             client->can_accept_bytes = true;
+            client_write_if_possible(client);
             break;
         case kCFStreamEventErrorOccurred:
-            log_debug("kCFStreamEventErrorOccurred\n");
             proxy_signal_client_error(client, CFWriteStreamGetError(stream));
             break;
         case kCFStreamEventEndEncountered:

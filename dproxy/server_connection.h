@@ -12,8 +12,10 @@
 #include <CFNetwork/CFNetwork.h>
 #include <netinet/in.h>
 
+struct proxy_channel_t;
+
 struct server_conn_t {
-    void *proxy;
+    struct proxy_channel_t *proxy;
     
     CFSocketNativeHandle fd;
 
@@ -31,16 +33,22 @@ struct server_conn_t {
     CFHostClientContext dns_context;
 
     CFHTTPMessageRef incoming_message;
+
     CFHTTPMessageRef outgoing_message;
+    CFDataRef        outgoing_message_data;
+    CFIndex          outgoing_message_data_i;
 
     SInt32 port_nbr;
     CFHostRef host;
+    CFStringRef server_hostname;
 };
 
 void server_free(struct server_conn_t** server);
 struct server_conn_t* server_create(void);
 
-void setup_streams(struct server_conn_t *server, struct sockaddr * addr);
-void server_start_resolve(struct server_conn_t *conn);
+void server_process_request(struct server_conn_t *server, CFHTTPMessageRef message);
+
+void server_write_message(struct server_conn_t *server, CFHTTPMessageRef message);
+void server_write_if_possible(struct server_conn_t *server);
 
 #endif /* server_connection_h */
