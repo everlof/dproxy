@@ -7,16 +7,34 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0C0D0923201A468F000DFBAF /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C0D0922201A468F000DFBAF /* main.c */; };
+		0C0D0929201A4926000DFBAF /* libcunit.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 0C0D0928201A4926000DFBAF /* libcunit.dylib */; };
+		0C0D0937201A4F63000DFBAF /* libdproxyCore.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 0C0D092E201A4E32000DFBAF /* libdproxyCore.dylib */; };
+		0C0D093A201A5044000DFBAF /* DCProxy.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C0D0938201A5044000DFBAF /* DCProxy.c */; };
+		0C0D093B201A5044000DFBAF /* DCProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = 0C0D0939201A5044000DFBAF /* DCProxy.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		0C0D093E201A51B5000DFBAF /* DCChannel.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C0D093C201A51B5000DFBAF /* DCChannel.c */; };
+		0C0D093F201A51B5000DFBAF /* DCChannel.h in Headers */ = {isa = PBXBuildFile; fileRef = 0C0D093D201A51B5000DFBAF /* DCChannel.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		0C2D170B201A654E001A8E90 /* log.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CDEBFF0200DD1A9002BCCF2 /* log.c */; };
+		0C2D170E201A6B04001A8E90 /* DCConnection.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C2D170C201A6B04001A8E90 /* DCConnection.c */; };
+		0C2D170F201A6B04001A8E90 /* DCConnection.h in Headers */ = {isa = PBXBuildFile; fileRef = 0C2D170D201A6B04001A8E90 /* DCConnection.h */; settings = {ATTRIBUTES = (Public, ); }; };
+		0C2D1710201DB806001A8E90 /* utils.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C947BC82013B37600DF3B52 /* utils.c */; };
 		0C947BC120137A9D00DF3B52 /* proxy_channel.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C947BBF20137A9D00DF3B52 /* proxy_channel.c */; };
 		0C947BC42013B07900DF3B52 /* client_connection.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C947BC22013B07900DF3B52 /* client_connection.c */; };
 		0C947BC72013B08400DF3B52 /* server_connection.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C947BC52013B08400DF3B52 /* server_connection.c */; };
-		0C947BCA2013B37600DF3B52 /* utils.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C947BC82013B37600DF3B52 /* utils.c */; };
 		0CDEBFC9200BB774002BCCF2 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CDEBFC8200BB774002BCCF2 /* main.c */; };
 		0CDEBFDC200CF9B6002BCCF2 /* proxy.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CDEBFDA200CF9B6002BCCF2 /* proxy.c */; };
-		0CDEBFF2200DD1A9002BCCF2 /* log.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CDEBFF0200DD1A9002BCCF2 /* log.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		0C0D091E201A468F000DFBAF /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
 		0CDEBFC3200BB773002BCCF2 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -29,6 +47,16 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0C0D0920201A468F000DFBAF /* dproxyTests */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = dproxyTests; sourceTree = BUILT_PRODUCTS_DIR; };
+		0C0D0922201A468F000DFBAF /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
+		0C0D0928201A4926000DFBAF /* libcunit.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libcunit.dylib; path = "../../../../usr/local/Cellar/cunit/2.1-3/lib/libcunit.dylib"; sourceTree = "<group>"; };
+		0C0D092E201A4E32000DFBAF /* libdproxyCore.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = libdproxyCore.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
+		0C0D0938201A5044000DFBAF /* DCProxy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = DCProxy.c; sourceTree = "<group>"; };
+		0C0D0939201A5044000DFBAF /* DCProxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DCProxy.h; sourceTree = "<group>"; };
+		0C0D093C201A51B5000DFBAF /* DCChannel.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = DCChannel.c; sourceTree = "<group>"; };
+		0C0D093D201A51B5000DFBAF /* DCChannel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DCChannel.h; sourceTree = "<group>"; };
+		0C2D170C201A6B04001A8E90 /* DCConnection.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = DCConnection.c; sourceTree = "<group>"; };
+		0C2D170D201A6B04001A8E90 /* DCConnection.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DCConnection.h; sourceTree = "<group>"; };
 		0C947BBE20136F3200DF3B52 /* test.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = test.sh; sourceTree = "<group>"; };
 		0C947BBF20137A9D00DF3B52 /* proxy_channel.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = proxy_channel.c; sourceTree = "<group>"; };
 		0C947BC020137A9D00DF3B52 /* proxy_channel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = proxy_channel.h; sourceTree = "<group>"; };
@@ -47,6 +75,22 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		0C0D091D201A468F000DFBAF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0C0D0929201A4926000DFBAF /* libcunit.dylib in Frameworks */,
+				0C0D0937201A4F63000DFBAF /* libdproxyCore.dylib in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0C0D092B201A4E32000DFBAF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0CDEBFC2200BB773002BCCF2 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -57,6 +101,39 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0C0D0921201A468F000DFBAF /* dproxyTests */ = {
+			isa = PBXGroup;
+			children = (
+				0C0D0922201A468F000DFBAF /* main.c */,
+			);
+			path = dproxyTests;
+			sourceTree = "<group>";
+		};
+		0C0D0927201A4926000DFBAF /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				0C0D0928201A4926000DFBAF /* libcunit.dylib */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		0C0D0932201A4E75000DFBAF /* dproxyCore */ = {
+			isa = PBXGroup;
+			children = (
+				0C947BC82013B37600DF3B52 /* utils.c */,
+				0C947BC92013B37600DF3B52 /* utils.h */,
+				0CDEBFF0200DD1A9002BCCF2 /* log.c */,
+				0CDEBFF1200DD1A9002BCCF2 /* log.h */,
+				0C0D0938201A5044000DFBAF /* DCProxy.c */,
+				0C0D0939201A5044000DFBAF /* DCProxy.h */,
+				0C0D093C201A51B5000DFBAF /* DCChannel.c */,
+				0C0D093D201A51B5000DFBAF /* DCChannel.h */,
+				0C2D170C201A6B04001A8E90 /* DCConnection.c */,
+				0C2D170D201A6B04001A8E90 /* DCConnection.h */,
+			);
+			path = dproxyCore;
+			sourceTree = "<group>";
+		};
 		0C947BBC20136E6700DF3B52 /* tests */ = {
 			isa = PBXGroup;
 			children = (
@@ -68,9 +145,12 @@
 		0CDEBFBC200BB773002BCCF2 = {
 			isa = PBXGroup;
 			children = (
+				0C0D0932201A4E75000DFBAF /* dproxyCore */,
 				0CDEBFC7200BB774002BCCF2 /* dproxy */,
 				0C947BBC20136E6700DF3B52 /* tests */,
+				0C0D0921201A468F000DFBAF /* dproxyTests */,
 				0CDEBFC6200BB773002BCCF2 /* Products */,
+				0C0D0927201A4926000DFBAF /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -78,6 +158,8 @@
 			isa = PBXGroup;
 			children = (
 				0CDEBFC5200BB773002BCCF2 /* dproxy */,
+				0C0D0920201A468F000DFBAF /* dproxyTests */,
+				0C0D092E201A4E32000DFBAF /* libdproxyCore.dylib */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -87,8 +169,6 @@
 			children = (
 				0C947BC22013B07900DF3B52 /* client_connection.c */,
 				0C947BC32013B07900DF3B52 /* client_connection.h */,
-				0CDEBFF0200DD1A9002BCCF2 /* log.c */,
-				0CDEBFF1200DD1A9002BCCF2 /* log.h */,
 				0CDEBFC8200BB774002BCCF2 /* main.c */,
 				0C947BBF20137A9D00DF3B52 /* proxy_channel.c */,
 				0C947BC020137A9D00DF3B52 /* proxy_channel.h */,
@@ -96,15 +176,60 @@
 				0CDEBFDB200CF9B6002BCCF2 /* proxy.h */,
 				0C947BC52013B08400DF3B52 /* server_connection.c */,
 				0C947BC62013B08400DF3B52 /* server_connection.h */,
-				0C947BC82013B37600DF3B52 /* utils.c */,
-				0C947BC92013B37600DF3B52 /* utils.h */,
 			);
 			path = dproxy;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
+/* Begin PBXHeadersBuildPhase section */
+		0C0D092C201A4E32000DFBAF /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0C0D093B201A5044000DFBAF /* DCProxy.h in Headers */,
+				0C2D170F201A6B04001A8E90 /* DCConnection.h in Headers */,
+				0C0D093F201A51B5000DFBAF /* DCChannel.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
 /* Begin PBXNativeTarget section */
+		0C0D091F201A468F000DFBAF /* dproxyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0C0D0926201A468F000DFBAF /* Build configuration list for PBXNativeTarget "dproxyTests" */;
+			buildPhases = (
+				0C0D091C201A468F000DFBAF /* Sources */,
+				0C0D091D201A468F000DFBAF /* Frameworks */,
+				0C0D091E201A468F000DFBAF /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = dproxyTests;
+			productName = dproxyTests;
+			productReference = 0C0D0920201A468F000DFBAF /* dproxyTests */;
+			productType = "com.apple.product-type.tool";
+		};
+		0C0D092D201A4E32000DFBAF /* dproxyCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0C0D092F201A4E32000DFBAF /* Build configuration list for PBXNativeTarget "dproxyCore" */;
+			buildPhases = (
+				0C0D092A201A4E32000DFBAF /* Sources */,
+				0C0D092B201A4E32000DFBAF /* Frameworks */,
+				0C0D092C201A4E32000DFBAF /* Headers */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = dproxyCore;
+			productName = dproxyCore;
+			productReference = 0C0D092E201A4E32000DFBAF /* libdproxyCore.dylib */;
+			productType = "com.apple.product-type.library.dynamic";
+		};
 		0CDEBFC4200BB773002BCCF2 /* dproxy */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0CDEBFCC200BB774002BCCF2 /* Build configuration list for PBXNativeTarget "dproxy" */;
@@ -131,6 +256,14 @@
 				LastUpgradeCheck = 0920;
 				ORGANIZATIONNAME = "David Everlöf";
 				TargetAttributes = {
+					0C0D091F201A468F000DFBAF = {
+						CreatedOnToolsVersion = 9.2;
+						ProvisioningStyle = Automatic;
+					};
+					0C0D092D201A4E32000DFBAF = {
+						CreatedOnToolsVersion = 9.2;
+						ProvisioningStyle = Automatic;
+					};
 					0CDEBFC4200BB773002BCCF2 = {
 						CreatedOnToolsVersion = 9.2;
 						ProvisioningStyle = Automatic;
@@ -150,18 +283,38 @@
 			projectRoot = "";
 			targets = (
 				0CDEBFC4200BB773002BCCF2 /* dproxy */,
+				0C0D091F201A468F000DFBAF /* dproxyTests */,
+				0C0D092D201A4E32000DFBAF /* dproxyCore */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
+		0C0D091C201A468F000DFBAF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0C0D0923201A468F000DFBAF /* main.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0C0D092A201A4E32000DFBAF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0C2D1710201DB806001A8E90 /* utils.c in Sources */,
+				0C2D170B201A654E001A8E90 /* log.c in Sources */,
+				0C0D093A201A5044000DFBAF /* DCProxy.c in Sources */,
+				0C2D170E201A6B04001A8E90 /* DCConnection.c in Sources */,
+				0C0D093E201A51B5000DFBAF /* DCChannel.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0CDEBFC1200BB773002BCCF2 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				0C947BC120137A9D00DF3B52 /* proxy_channel.c in Sources */,
-				0C947BCA2013B37600DF3B52 /* utils.c in Sources */,
-				0CDEBFF2200DD1A9002BCCF2 /* log.c in Sources */,
 				0C947BC42013B07900DF3B52 /* client_connection.c in Sources */,
 				0C947BC72013B08400DF3B52 /* server_connection.c in Sources */,
 				0CDEBFDC200CF9B6002BCCF2 /* proxy.c in Sources */,
@@ -172,6 +325,64 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		0C0D0924201A468F000DFBAF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = SMQ3E8Y57T;
+				FRAMEWORK_SEARCH_PATHS = "/usr/local/Cellar/cunit/2.1-3/lib/";
+				HEADER_SEARCH_PATHS = "/usr/local/Cellar/cunit/2.1-3/include/";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"/usr/local/Cellar/cunit/2.1-3/lib",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = "";
+				SYSTEM_HEADER_SEARCH_PATHS = "";
+			};
+			name = Debug;
+		};
+		0C0D0925201A468F000DFBAF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = SMQ3E8Y57T;
+				FRAMEWORK_SEARCH_PATHS = "/usr/local/Cellar/cunit/2.1-3/lib/";
+				HEADER_SEARCH_PATHS = "/usr/local/Cellar/cunit/2.1-3/include/";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"/usr/local/Cellar/cunit/2.1-3/lib",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SYSTEM_FRAMEWORK_SEARCH_PATHS = "";
+				SYSTEM_HEADER_SEARCH_PATHS = "";
+			};
+			name = Release;
+		};
+		0C0D0930201A4E32000DFBAF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = SMQ3E8Y57T;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				EXECUTABLE_PREFIX = lib;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		0C0D0931201A4E32000DFBAF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = SMQ3E8Y57T;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				EXECUTABLE_PREFIX = lib;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
 		0CDEBFCA200BB774002BCCF2 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -296,6 +507,24 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0C0D0926201A468F000DFBAF /* Build configuration list for PBXNativeTarget "dproxyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0C0D0924201A468F000DFBAF /* Debug */,
+				0C0D0925201A468F000DFBAF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0C0D092F201A4E32000DFBAF /* Build configuration list for PBXNativeTarget "dproxyCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0C0D0930201A4E32000DFBAF /* Debug */,
+				0C0D0931201A4E32000DFBAF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		0CDEBFC0200BB773002BCCF2 /* Build configuration list for PBXProject "dproxy" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -8,23 +8,15 @@
 
 #include "utils.h"
 
-char* CFStreamEventTypeString(CFStreamEventType type) {
-    switch (type)
-    {
-        case kCFStreamEventNone: return "kCFStreamEventNone";
-        case kCFStreamEventOpenCompleted: return "kCFStreamEventOpenCompleted";
-        case kCFStreamEventHasBytesAvailable: return "kCFStreamEventHasBytesAvailable";
-        case kCFStreamEventCanAcceptBytes: return "kCFStreamEventCanAcceptBytes";
-        case kCFStreamEventErrorOccurred: return "kCFStreamEventErrorOccurred";
-        case kCFStreamEventEndEncountered: return "kCFStreamEventEndEncountered";
-    }
-    return "INVALID";
-}
-
 void dump_hex(char *desc, void *addr, int len) {
     int i;
     unsigned char buff[17];
     unsigned char *pc = (unsigned char*)addr;
+
+    if (len == 0) {
+        printf ("%s (zero bytes):\n", desc);
+        return;
+    }
 
     // Output description if given.
     if (desc != NULL)
