@@ -4,7 +4,7 @@
 
 #include <CFNetwork/CFNetwork.h>
 
-#define TRACE(p) log_trace("connection=%p (%s)\n", p, p->talksTo == kDCConnectionTalksToClient ? "CLIENT" : "SERVER")
+#define TRACE(p) log_trace("connection=%p (%s)\n", p, p->type == kDCConnectionTypeClient ? "CLIENT" : "SERVER")
 
 CFStringRef const kDCConnectionReceivedHTTPRequest = CFSTR("DCConnectionReceivedHTTPRequest");
 
@@ -18,20 +18,26 @@ typedef enum __DCConnectionState {
     kDCConnectionStateFailed
 } __DCConnectionState;
 
+typedef struct __HTTPWriteMessage {
+    CFHTTPMessageRef msg;
+    CFDataRef data;
+    CFIndex idx;
+} __HTTPWriteMessage;
+
 struct __DCConnection {
-    DCConnectionTalksTo talksTo;
+    DCConnectionType type;
     DCChannelRef channel;
     CFStreamClientContext streamContext;
 
     CFReadStreamRef readStream;
-    CFMutableArrayRef receivedMessages;
+    CFMutableArrayRef recvUnprocessedMessages;
+    CFMutableArrayRef recvProcessedMessages;
     CFHTTPMessageRef readMessage;
     UInt8 readBuffer[BUFSIZ];
 
+    // Where we write our requests
     CFWriteStreamRef writeStream;
-    CFHTTPMessageRef activeWriteMessage;
-    CFDataRef activeWriteData;
-    CFIndex activeWriteIndex;
+    __HTTPWriteMessage writeMessage;
     CFMutableArrayRef outgoingMessages;
     CFMutableArrayRef sentMessages;
 
@@ -39,7 +45,6 @@ struct __DCConnection {
     DCConnectionCallback callback;
     DCConnectionCallbackEvents callbackEvents;
 };
-
 
 void DCConnectionClose(DCConnectionRef connection) {
     TRACE(connection);
@@ -52,7 +57,8 @@ void DCConnectionClose(DCConnectionRef connection) {
 DCConnectionRef DCConnectionCreate(DCChannelRef channel) {
     struct __DCConnection *connection = (struct __DCConnection *) calloc(1, sizeof(struct __DCConnection));
     TRACE(connection);
-    connection->receivedMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
+    connection->recvUnprocessedMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
+    connection->recvProcessedMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
     connection->sentMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
     connection->outgoingMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
     return connection;
@@ -60,7 +66,10 @@ DCConnectionRef DCConnectionCreate(DCChannelRef channel) {
 
 void DCConnectionRelease(DCConnectionRef connection) {
     TRACE(connection);
-    CFRelease(connection->receivedMessages);
+    if (connection->recvUnprocessedMessages) CFRelease(connection->recvUnprocessedMessages);
+    if (connection->recvProcessedMessages) CFRelease(connection->recvProcessedMessages);
+    if (connection->sentMessages) CFRelease(connection->sentMessages);
+    if (connection->outgoingMessages) CFRelease(connection->outgoingMessages);
     free(connection);
 }
 
@@ -77,11 +86,10 @@ static inline char* __CFStreamEventTypeString(CFStreamEventType type) {
     return "INVALID";
 }
 
-inline char* DCConnectionTalksToString(DCConnectionTalksTo talksTo) {
-    switch (talksTo) {
-        case kDCConnectionTalksToNone: return "kDCConnectionTalksToNone";
-        case kDCConnectionTalksToServer: return "kDCConnectionTalksToServer";
-        case kDCConnectionTalksToClient: return "kDCConnectionTalksToClient";
+inline char* DCConnectionTypeString(DCConnectionType type) {
+    switch (type) {
+        case kDCConnectionTypeClient: return "kDCConnectionTypeClient";
+        case kDCConnectionTypeServer: return "kDCConnectionTypeServer";
     }
     return "INVALID";
 }
@@ -100,9 +108,15 @@ inline char* DCConnectionCallbackTypeString(DCConnectionCallbackEvents type) {
     return "INVALID";
 }
 
-CFIndex DCConnectionGetNbrReceivedMessages(DCConnectionRef connection) {
-    TRACE(connection);
-    return CFArrayGetCount(connection->receivedMessages);
+bool DCConnectionHasReceived(DCConnectionRef connection) {
+    return CFArrayGetCount(connection->recvUnprocessedMessages) > 0;
+}
+
+CFHTTPMessageRef DCConnectionGetNextReceived(DCConnectionRef connection) {
+    CFHTTPMessageRef nextReceived = (CFHTTPMessageRef) CFArrayGetValueAtIndex(connection->recvUnprocessedMessages, 0);
+    CFArrayRemoveValueAtIndex(connection->recvUnprocessedMessages, 0);
+    CFArrayAppendValue(connection->recvProcessedMessages, nextReceived);
+    return nextReceived;
 }
 
 static void __DCConnectionSendRequestReceivedNotification(DCConnectionRef connection, CFHTTPMessageRef message) {
@@ -120,18 +134,19 @@ void DCConnectionSetClient(DCConnectionRef connection, DCConnectionCallbackEvent
     memcpy(&(connection->context), clientContext, sizeof(DCConnectionContext));
 }
 
-static CFMutableArrayRef __DCReadConsumeBytesToMessage(DCConnectionRef connection, CFMutableArrayRef received, const UInt8 *buffer, CFIndex bytes) {
+static int __DCReadConsumeBytesToMessage(DCConnectionRef connection, const UInt8 *buffer, CFIndex bytes) {
     TRACE(connection);
     char *EOM = "\r\n\r\n";
-    int messagesCompleted = 0;
+
+    int nbrMessagesCompleted = 0;
 
     if (bytes == 0) {
         /* EOF - Don't do anything, we'll receive another callback about this */
-        return received;
+        return nbrMessagesCompleted;
     }
 
     if (!connection->readMessage)
-        connection->readMessage = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, connection->talksTo == kDCConnectionTalksToClient);
+        connection->readMessage = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, connection->type == kDCConnectionTypeClient);
 
     CFIndex bytesLeft = bytes;
 
@@ -140,12 +155,11 @@ static CFMutableArrayRef __DCReadConsumeBytesToMessage(DCConnectionRef connectio
         if (endOfMessage) {
             CFIndex toConsume = ((const UInt8 *)endOfMessage) - buffer + strlen(EOM);
             CFHTTPMessageAppendBytes(connection->readMessage, buffer, toConsume);
-            log_trace("connection=%p message completed => %p\n", connection, connection->readMessage);
+            log_trace("connection=%p message recv => %p\n", connection, connection->readMessage);
             __DCConnectionSendRequestReceivedNotification(connection, connection->readMessage);
-            messagesCompleted++;
-            CFArrayAppendValue(connection->receivedMessages, connection->readMessage);
-            CFArrayAppendValue(received, connection->readMessage);
-            connection->readMessage = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, connection->talksTo == kDCConnectionTalksToClient);
+            nbrMessagesCompleted++;
+            CFArrayAppendValue(connection->recvUnprocessedMessages, connection->readMessage);
+            connection->readMessage = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, connection->type == kDCConnectionTypeClient);
             buffer = (const UInt8*) (endOfMessage + strlen(EOM));
             bytesLeft -= toConsume;
             log_trace("connection=%p, toConsume=%d, bytesLeft=%d\n", connection, toConsume, bytesLeft);
@@ -160,33 +174,33 @@ static CFMutableArrayRef __DCReadConsumeBytesToMessage(DCConnectionRef connectio
         }
     } while (bytesLeft > 0);
 
-    return received;
+    return nbrMessagesCompleted;
 }
 
-static CFMutableArrayRef __DCReadToMessage(DCConnectionRef connection) {
+static int __DCReadToMessage(DCConnectionRef connection) {
     TRACE(connection);
-    CFMutableArrayRef receivedMessages = CFArrayCreateMutable(kCFAllocatorDefault, 4, &kCFTypeArrayCallBacks);
+    int nbrMessagesCompleted = 0;
     do {
         memset(connection->readBuffer, 0, sizeof(connection->readBuffer));
         CFIndex bytesLeft = CFReadStreamRead(connection->readStream, connection->readBuffer, sizeof(connection->readBuffer));
         dump_hex("CFReadStreamRead", (void*) connection->readBuffer, (int) bytesLeft);
-        __DCReadConsumeBytesToMessage(connection, receivedMessages, connection->readBuffer, bytesLeft);
+        nbrMessagesCompleted += __DCReadConsumeBytesToMessage(connection, connection->readBuffer, bytesLeft);
     } while (CFReadStreamHasBytesAvailable(connection->readStream));
-    return receivedMessages;
+    return nbrMessagesCompleted;
 }
 
 static inline void __DCConnectionReadCallback(CFReadStreamRef stream, CFStreamEventType type, void *info) {
     DCConnectionRef connection = (DCConnectionRef) info;
-    log_trace("connection=%p, type => %s\n", connection, __CFStreamEventTypeString(type));
+    log_trace("connection=%p, event => %s\n", connection, __CFStreamEventTypeString(type));
 
     switch (type) {
         case kCFStreamEventHasBytesAvailable:
             {
-                CFMutableArrayRef receivedMessages = __DCReadToMessage(connection);
-                if (CFArrayGetCount(receivedMessages) > 0 &&
+                int nbrMessagesCompleted = __DCReadToMessage(connection);
+                if (nbrMessagesCompleted > 0 &&
                     (connection->callbackEvents & kDCConnectionCallbackTypeIncomingMessage) != 0 &&
                     connection->callback != NULL) {
-                    connection->callback(connection, kDCConnectionCallbackTypeIncomingMessage, NULL, (void*) receivedMessages, connection->context.info);
+                    connection->callback(connection, kDCConnectionCallbackTypeIncomingMessage, NULL, NULL, connection->context.info);
                 }
             }
             break;
@@ -202,28 +216,31 @@ static inline void __DCConnectionReadCallback(CFReadStreamRef stream, CFStreamEv
     }
 }
 
-bool __DCProcessSingleMessage(DCConnectionRef connection) {
+bool __DCProcessSingleMessage(DCConnectionRef connection, CFHTTPMessageRef message) {
     TRACE(connection);
 
-    if (!connection->activeWriteData) {
-        connection->activeWriteData = CFHTTPMessageCopySerializedMessage(connection->activeWriteMessage);
-        connection->activeWriteIndex = 0;
+    if (!connection->writeMessage.msg) {
+        log_trace("connection=%p, no active message, settings %p to active\n", connection, message);
+
+        connection->writeMessage.msg = message;
+        connection->writeMessage.idx = 0;
+        connection->writeMessage.data = CFHTTPMessageCopySerializedMessage(message);
     }
 
-    const UInt8 *buffer = CFDataGetBytePtr(connection->activeWriteData);
-    CFIndex bufferLen = CFDataGetLength(connection->activeWriteData);
-    CFIndex bufferLeft = bufferLen - connection->activeWriteIndex;
+    const UInt8 *buffer = CFDataGetBytePtr(connection->writeMessage.data);
+    CFIndex bufferLen = CFDataGetLength(connection->writeMessage.data);
+    CFIndex bufferLeft = bufferLen - connection->writeMessage.idx;
 
-    CFIndex nbrWritten = CFWriteStreamWrite(connection->writeStream, buffer + connection->activeWriteIndex, bufferLeft);
-    connection->activeWriteIndex += nbrWritten;
+    CFIndex nbrWritten = CFWriteStreamWrite(connection->writeStream, buffer + connection->writeMessage.idx, bufferLeft);
+    connection->writeMessage.idx += nbrWritten;
 
-    if (connection->activeWriteIndex == bufferLen) {
+    if (connection->writeMessage.idx == bufferLen) {
         // Message finished
-        CFArrayAppendValue(connection->sentMessages, connection->activeWriteMessage);
-        CFRelease(connection->activeWriteMessage);
-        CFRelease(connection->activeWriteData);
-        connection->activeWriteData = NULL;
-        connection->activeWriteMessage = NULL;
+        CFArrayAppendValue(connection->sentMessages, connection->writeMessage.msg);
+        CFRelease(connection->writeMessage.msg);
+        CFRelease(connection->writeMessage.data);
+        connection->writeMessage.data = NULL;
+        memset(&(connection->writeMessage), 0, sizeof(__HTTPWriteMessage));
         return true;
     }
 
@@ -231,7 +248,7 @@ bool __DCProcessSingleMessage(DCConnectionRef connection) {
 }
 
 static inline bool __DCHasOutgoingMessages(DCConnectionRef connection) {
-    return connection->activeWriteMessage || CFArrayGetCount(connection->outgoingMessages) > 0;
+    return connection->writeMessage.msg || CFArrayGetCount(connection->outgoingMessages) > 0;
 }
 
 void __DCProcessOutgoingMessages(DCConnectionRef connection) {
@@ -243,8 +260,8 @@ void __DCProcessOutgoingMessages(DCConnectionRef connection) {
         return;
     }
 
-    if (connection->activeWriteMessage) {
-        didSend = __DCProcessSingleMessage(connection);
+    if (connection->writeMessage.msg) {
+        didSend = __DCProcessSingleMessage(connection, connection->writeMessage.msg);
 
         if (!didSend) {
             log_trace("connection=%p, first active wasn't fully processed, won't continue process more\n" ,connection);
@@ -265,8 +282,7 @@ void __DCProcessOutgoingMessages(DCConnectionRef connection) {
     do {
         CFHTTPMessageRef message = (CFHTTPMessageRef) CFArrayGetValueAtIndex(connection->outgoingMessages, 0);
         CFArrayRemoveValueAtIndex(connection->outgoingMessages, 0);
-        connection->activeWriteMessage = message;
-        didSend = __DCProcessSingleMessage(connection);
+        didSend = __DCProcessSingleMessage(connection, message);
     } while (CFArrayGetCount(connection->outgoingMessages) > 0 && didSend && CFWriteStreamCanAcceptBytes(connection->writeStream));
 }
 
@@ -276,14 +292,14 @@ void DCConnectionAddOutgoing(DCConnectionRef connection, CFHTTPMessageRef outgoi
     __DCProcessOutgoingMessages(connection);
 }
 
-void DCConnectionSetTalksTo(DCConnectionRef connection, DCConnectionTalksTo talksTo) {
-    log_trace("connection=%p, talksTo => %s\n", connection, DCConnectionTalksToString(talksTo));
-    connection->talksTo = talksTo;
+void DCConnectionSetTalksTo(DCConnectionRef connection, DCConnectionType type) {
+    log_trace("connection=%p, type => %s\n", connection, DCConnectionTypeString(type));
+    connection->type = type;
 }
 
 static void __DCConnectionWriteCallback(CFWriteStreamRef stream, CFStreamEventType type, void *info) {
     DCConnectionRef connection = (DCConnectionRef) info;
-    log_trace("connection=%p, type => %s\n", connection, __CFStreamEventTypeString(type));
+    log_trace("connection=%p, event => %s\n", connection, __CFStreamEventTypeString(type));
 
     switch (type) {
         case kCFStreamEventCanAcceptBytes:

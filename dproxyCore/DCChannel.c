@@ -81,11 +81,6 @@ static void __DCChannelSetupServer(DCChannelRef channel, CFHTTPMessageRef messag
      */
 }
 
-void __DCChannelEnqueueAllIncoming(const void *value, void *context) {
-    DCConnectionRef connection = (DCConnectionRef) context;
-    DCConnectionAddOutgoing(connection, (CFHTTPMessageRef) value);
-}
-
 static void __DCChannelConnectionCallback(DCConnectionRef connection, DCConnectionCallbackEvents type, CFDataRef address, const void *data, void *info) {
     DCChannelRef channel = (DCChannelRef) info;
     log_debug("channel=%p, connectionCallback => %p, event => %s\n", channel, connection, DCConnectionCallbackTypeString(type));
@@ -93,18 +88,12 @@ static void __DCChannelConnectionCallback(DCConnectionRef connection, DCConnecti
     switch (type) {
         case kDCConnectionCallbackTypeIncomingMessage:
         {
-            CFArrayRef received = (CFArrayRef) data;
-
-            if (CFArrayGetCount(received) == 0)
-                return;
-
-            CFHTTPMessageRef first = (CFHTTPMessageRef) CFArrayGetValueAtIndex(received, 0);
-
-            if (!channel->host)
-                __DCChannelSetupServer(channel, first);
-
-            log_trace("number of received messages => %d\n", CFArrayGetCount(received));
-            CFArrayApplyFunction(received, CFRangeMake(0, CFArrayGetCount(received)), __DCChannelEnqueueAllIncoming, channel->server);
+            while (DCConnectionHasReceived(connection)) {
+                CFHTTPMessageRef next = DCConnectionGetNextReceived(connection);
+                if (!channel->host)
+                    __DCChannelSetupServer(channel, next);
+                DCConnectionAddOutgoing(channel->server, next);
+            }
         }
         break;
         case kDCConnectionCallbackTypeConnectionEOF:
@@ -119,10 +108,10 @@ static void __DCChannelConnectionCallback(DCConnectionRef connection, DCConnecti
 
 void DCChannelSetupWithFD(DCChannelRef channel, CFSocketNativeHandle fd) {
     channel->client = DCConnectionCreate(channel);
-    DCConnectionSetTalksTo(channel->client, kDCConnectionTalksToClient);
+    DCConnectionSetTalksTo(channel->client, kDCConnectionTypeClient);
 
     channel->server = DCConnectionCreate(channel);
-    DCConnectionSetTalksTo(channel->server, kDCConnectionTalksToServer);
+    DCConnectionSetTalksTo(channel->server, kDCConnectionTypeServer);
 
     DCConnectionContext context;
     context.info = channel;

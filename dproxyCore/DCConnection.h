@@ -26,11 +26,10 @@ typedef enum DCConnectionCallbackEvents {
     kDCConnectionCallbackTypeFailed = 32
 } DCConnectionCallbackEvents;
 
-typedef enum DCConnectionTalksTo {
-    kDCConnectionTalksToNone = 0,
-    kDCConnectionTalksToServer = 1,
-    kDCConnectionTalksToClient = 2
-} DCConnectionTalksTo;
+typedef enum DCConnectionType {
+    kDCConnectionTypeServer = 0,
+    kDCConnectionTypeClient = 1
+} DCConnectionType;
 
 typedef void (*DCConnectionCallback)(DCConnectionRef connection, DCConnectionCallbackEvents type, CFDataRef address, const void *data, void *info);
 
@@ -41,13 +40,15 @@ void DCConnectionClose(DCConnectionRef connection);
 void DCConnectionSetupWithFD(DCConnectionRef connection, CFSocketNativeHandle fd);
 void DCConnectionSetupWithHost(DCConnectionRef connection, CFHostRef host, UInt32 port);
 
-void DCConnectionSetTalksTo(DCConnectionRef connection, DCConnectionTalksTo talksTo);
+void DCConnectionSetTalksTo(DCConnectionRef connection, DCConnectionType type);
 void DCConnectionSetClient(DCConnectionRef connection, DCConnectionCallbackEvents events, DCConnectionCallback clientCB, DCConnectionContext *clientContext);
 
 void DCConnectionAddOutgoing(DCConnectionRef connection, CFHTTPMessageRef outgoingMessage);
-CFIndex DCConnectionGetNbrReceivedMessages(DCConnectionRef connection);
+
+bool DCConnectionHasReceived(DCConnectionRef connection);
+CFHTTPMessageRef DCConnectionGetNextReceived(DCConnectionRef connection);
 
 char* DCConnectionCallbackTypeString(DCConnectionCallbackEvents type);
-char* DCConnectionTalksToString(DCConnectionTalksTo talksTo);
+char* DCConnectionTypeString(DCConnectionType type);
 
 #endif /* DCConnection_h */
