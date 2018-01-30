@@ -24,16 +24,29 @@ typedef struct __HTTPWriteMessage {
     CFIndex idx;
 } __HTTPWriteMessage;
 
+typedef enum __HTTPReadMessageState {
+    kHTTPReadMessageStateHeader = 0,
+    kHTTPReadMessageStateBody = 1
+} __HTTPReadMessageState;
+
+typedef struct __HTTPReadMessage {
+    CFHTTPMessageRef msg;
+    __HTTPReadMessageState state;
+    SInt32 bodyLength;
+    CFIndex idx;
+    SInt32 eofLeft;
+} __HTTPReadMessage;
+
 struct __DCConnection {
     DCConnectionType type;
     DCChannelRef channel;
     CFStreamClientContext streamContext;
 
     CFReadStreamRef readStream;
+    __HTTPReadMessage readMessage;
+    UInt8 readBuffer[4*BUFSIZ];
     CFMutableArrayRef recvUnprocessedMessages;
     CFMutableArrayRef recvProcessedMessages;
-    CFHTTPMessageRef readMessage;
-    UInt8 readBuffer[BUFSIZ];
 
     // Where we write our requests
     CFWriteStreamRef writeStream;
@@ -134,6 +147,17 @@ void DCConnectionSetClient(DCConnectionRef connection, DCConnectionCallbackEvent
     memcpy(&(connection->context), clientContext, sizeof(DCConnectionContext));
 }
 
+
+static SInt32 __DCConnectionBodyLength(CFHTTPMessageRef message) {
+    SInt32 ret = 0;
+    CFStringRef contentLength = CFHTTPMessageCopyHeaderFieldValue(message, CFSTR("Content-Length"));
+    if (contentLength) {
+        ret = CFStringGetIntValue(contentLength);
+        CFRelease(contentLength);
+    }
+    return ret;
+}
+
 static int __DCReadConsumeBytesToMessage(DCConnectionRef connection, const UInt8 *buffer, CFIndex bytes) {
     TRACE(connection);
     char *EOM = "\r\n\r\n";
@@ -145,32 +169,117 @@ static int __DCReadConsumeBytesToMessage(DCConnectionRef connection, const UInt8
         return nbrMessagesCompleted;
     }
 
-    if (!connection->readMessage)
-        connection->readMessage = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, connection->type == kDCConnectionTypeClient);
-
     CFIndex bytesLeft = bytes;
 
     do {
-        char *endOfMessage = strnstr((char*) buffer, EOM, bytesLeft);
-        if (endOfMessage) {
-            CFIndex toConsume = ((const UInt8 *)endOfMessage) - buffer + strlen(EOM);
-            CFHTTPMessageAppendBytes(connection->readMessage, buffer, toConsume);
-            log_trace("connection=%p message recv => %p\n", connection, connection->readMessage);
-            __DCConnectionSendRequestReceivedNotification(connection, connection->readMessage);
-            nbrMessagesCompleted++;
-            CFArrayAppendValue(connection->recvUnprocessedMessages, connection->readMessage);
-            connection->readMessage = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, connection->type == kDCConnectionTypeClient);
-            buffer = (const UInt8*) (endOfMessage + strlen(EOM));
-            bytesLeft -= toConsume;
-            log_trace("connection=%p, toConsume=%d, bytesLeft=%d\n", connection, toConsume, bytesLeft);
-        } else {
-            // There's no end of an HTTP-request in the rest of our buffer,
-            // thus we append the whole buffer to our message and we'll continue
-            // to search for a message end in next read.
+        // Did our last buffer end with something that was partially a `EOF`?
+        // If so - check if the rest of it comes here.
+        if (connection->readMessage.eofLeft > 0) {
+            SInt32 eofProcessed = 4 - connection->readMessage.eofLeft;
+            if (memcmp(EOM + eofProcessed, buffer, connection->readMessage.eofLeft) == 0) {
+                CFHTTPMessageAppendBytes(connection->readMessage.msg, buffer, connection->readMessage.eofLeft);
+                buffer += connection->readMessage.eofLeft;
+                bytesLeft -= connection->readMessage.eofLeft;
+                SInt32 bodyLength = __DCConnectionBodyLength(connection->readMessage.msg);
 
-            CFHTTPMessageAppendBytes(connection->readMessage, buffer, bytesLeft);
-            log_trace("connection=%p, bytesLeft=%d\n", connection, bytesLeft);
-            bytesLeft = 0;
+                if (bodyLength > 0) {
+                    connection->readMessage.state = kHTTPReadMessageStateBody;
+                    connection->readMessage.bodyLength = bodyLength;
+                    connection->readMessage.idx = 0;
+                } else {
+                    log_trace("connection=%p message recv => %p\n", connection, connection->readMessage.msg);
+                    __DCConnectionSendRequestReceivedNotification(connection, connection->readMessage.msg);
+                    nbrMessagesCompleted++;
+                    CFArrayAppendValue(connection->recvUnprocessedMessages, connection->readMessage.msg);
+
+                    CFRelease(connection->readMessage.msg);
+                    memset(&(connection->readMessage), 0, sizeof(__HTTPReadMessage));
+                }
+            } else {
+                connection->readMessage.eofLeft = -1;
+            }
+        }
+
+        // Make sure we always have a message to work with
+        if (!connection->readMessage.msg) {
+            connection->readMessage.msg = CFHTTPMessageCreateEmpty(kCFAllocatorDefault, connection->type == kDCConnectionTypeClient);
+            connection->readMessage.state = kHTTPReadMessageStateHeader;
+            connection->readMessage.bodyLength = -1;
+            connection->readMessage.idx = 0;
+            connection->readMessage.eofLeft = -1;
+        }
+
+        if (connection->readMessage.state == kHTTPReadMessageStateHeader) {
+            char *endOfMessage = strnstr((char*) buffer, EOM, bytesLeft);
+
+            if (endOfMessage) {
+                // We will finish our header in this buffer
+
+                // How much we'll consume
+                CFIndex toConsume = ((const UInt8 *)endOfMessage) - buffer + strlen(EOM);
+
+                // Consume it
+                CFHTTPMessageAppendBytes(connection->readMessage.msg, buffer, toConsume);
+
+                SInt32 bodyLength = __DCConnectionBodyLength(connection->readMessage.msg);
+                log_debug("connection=%p body expected => %d\n", connection, bodyLength);
+
+                if (bodyLength > 0) {
+                    connection->readMessage.state = kHTTPReadMessageStateBody;
+                    connection->readMessage.bodyLength = bodyLength;
+                    connection->readMessage.idx = 0;
+                } else {
+                    log_trace("connection=%p message recv => %p\n", connection, connection->readMessage.msg);
+                    __DCConnectionSendRequestReceivedNotification(connection, connection->readMessage.msg);
+                    nbrMessagesCompleted++;
+                    CFArrayAppendValue(connection->recvUnprocessedMessages, connection->readMessage.msg);
+
+                    CFRelease(connection->readMessage.msg);
+                    memset(&(connection->readMessage), 0, sizeof(__HTTPReadMessage));
+                }
+
+                buffer = (const UInt8*) (endOfMessage + strlen(EOM));
+                bytesLeft -= toConsume;
+
+                log_trace("connection=%p, toConsume=%d, bytesLeft=%d\n", connection, toConsume, bytesLeft);
+            } else {
+                // There's no end of an HTTP-request in the rest of our buffer,
+                // thus we append the whole buffer to our message and we'll continue
+                // to search for a message end in next read.
+
+
+                // Check if the end of our buffer contains a partial `EOM`
+                if (memcmp(EOM, (buffer + bytesLeft) - 3, 3) == 0) {
+                    connection->readMessage.eofLeft = 1;
+                } else if (memcmp(EOM, (buffer + bytesLeft) - 2, 2) == 0) {
+                    connection->readMessage.eofLeft = 2;
+                } else if (memcmp(EOM, (buffer + bytesLeft) - 1, 1) == 0) {
+                    connection->readMessage.eofLeft = 3;
+                }
+
+                CFHTTPMessageAppendBytes(connection->readMessage.msg, buffer, bytesLeft);
+                log_trace("connection=%p, bytesLeft=%d\n", connection, bytesLeft);
+                bytesLeft = 0;
+            }
+        }
+
+        if (connection->readMessage.msg && connection->readMessage.state == kHTTPReadMessageStateBody) {
+            CFIndex appendToBody = connection->readMessage.bodyLength > bytesLeft ? bytesLeft : connection->readMessage.bodyLength;
+            CFHTTPMessageAppendBytes(connection->readMessage.msg, buffer, appendToBody);
+            connection->readMessage.idx += appendToBody;
+
+            bytesLeft -= appendToBody;
+            buffer += appendToBody;
+
+            if (connection->readMessage.idx == connection->readMessage.bodyLength) {
+                log_trace("connection=%p message recv (w body) => %p\n", connection, connection->readMessage.msg);
+                __DCConnectionSendRequestReceivedNotification(connection, connection->readMessage.msg);
+                nbrMessagesCompleted++;
+                CFArrayAppendValue(connection->recvUnprocessedMessages, connection->readMessage.msg);
+
+                CFRelease(connection->readMessage.msg);
+                memset(&(connection->readMessage), 0, sizeof(__HTTPReadMessage));
+            }
         }
     } while (bytesLeft > 0);
 

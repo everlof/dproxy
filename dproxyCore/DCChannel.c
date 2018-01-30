@@ -22,28 +22,6 @@ DCChannelRef DCChannelCreate() {
     return channel;
 }
 
-/*static void __DCChannelResolveComplete(CFHostRef host, CFHostInfoType typeInfo, const CFStreamError *error, void *info)
-{
-    DCChannelRef channel = (DCChannelRef) info;
-    CFHostUnscheduleFromRunLoop(host, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-
-    Boolean hostsResolved;
-    CFArrayRef addressesArray = CFHostGetAddressing(host, &hostsResolved);
-
-    if (!hostsResolved) {
-        log_warn("Couldn't resolve host...");
-    } else if (addressesArray && CFArrayGetCount(addressesArray) > 0) {
-        CFDataRef socketData = (CFDataRef) CFArrayGetValueAtIndex(addressesArray, 0);
-        CFDataRef socketDataCopy = CFDataCreateCopy(kCFAllocatorDefault, socketData);
-        struct sockaddr *addr = (struct sockaddr *) CFDataGetBytePtr(socketDataCopy);
-
-
-
-        DCConnectionSetupWithHost(channel->server, host, channel->port)
-        CFRelease(socketDataCopy);
-    }
-}*/
-
 static void __DCChannelSetupServer(DCChannelRef channel, CFHTTPMessageRef message) {
     CFURLRef serverURL = CFHTTPMessageCopyRequestURL(message);
     CFStringRef serverHostname = CFURLCopyHostName(serverURL);
@@ -64,38 +42,46 @@ static void __DCChannelSetupServer(DCChannelRef channel, CFHTTPMessageRef messag
     if (serverURL) CFRelease(serverURL);
 
     DCConnectionSetupWithHost(channel->server, host, channel->port);
-
-    /*
-    channel->dnsContext.version = 0;
-    channel->dnsContext.info = (void *)(channel);
-    channel->dnsContext.retain = nil;
-    channel->dnsContext.release = nil;
-    channel->dnsContext.copyDescription = nil;
-
-    CFStreamError streamError;
-    CFHostSetClient(channel->host, __DCChannelResolveComplete, &(channel->dnsContext));
-    CFHostScheduleWithRunLoop(channel->host, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
-    Boolean started = CFHostStartInfoResolution(channel->host, kCFHostAddresses, &streamError);
-    if (!started)
-        log_warn("channel=%s: couldn't start server dns resolution\n", channel);
-     */
 }
 
-static void __DCChannelConnectionCallback(DCConnectionRef connection, DCConnectionCallbackEvents type, CFDataRef address, const void *data, void *info) {
+static void __DCChannelClientConnectionCallback(DCConnectionRef connection, DCConnectionCallbackEvents type, CFDataRef address, const void *data, void *info) {
     DCChannelRef channel = (DCChannelRef) info;
     log_debug("channel=%p, connectionCallback => %p, event => %s\n", channel, connection, DCConnectionCallbackTypeString(type));
 
     switch (type) {
         case kDCConnectionCallbackTypeIncomingMessage:
-        {
-            while (DCConnectionHasReceived(connection)) {
-                CFHTTPMessageRef next = DCConnectionGetNextReceived(connection);
-                if (!channel->host)
-                    __DCChannelSetupServer(channel, next);
-                DCConnectionAddOutgoing(channel->server, next);
+            {
+                while (DCConnectionHasReceived(connection)) {
+                    CFHTTPMessageRef next = DCConnectionGetNextReceived(connection);
+                    if (!channel->host)
+                        __DCChannelSetupServer(channel, next);
+                    DCConnectionAddOutgoing(channel->server, next);
+                }
             }
-        }
-        break;
+            break;
+        case kDCConnectionCallbackTypeConnectionEOF:
+            log_trace("closing connection=%p\n", connection);
+            DCConnectionClose(channel->client);
+            DCConnectionClose(channel->server);
+            break;
+        default:
+            break;
+    }
+}
+
+static void __DCChannelServerConnectionCallback(DCConnectionRef connection, DCConnectionCallbackEvents type, CFDataRef address, const void *data, void *info) {
+    DCChannelRef channel = (DCChannelRef) info;
+    log_debug("channel=%p, connectionCallback => %p, event => %s\n", channel, connection, DCConnectionCallbackTypeString(type));
+
+    switch (type) {
+        case kDCConnectionCallbackTypeIncomingMessage:
+            {
+                while (DCConnectionHasReceived(connection)) {
+                    CFHTTPMessageRef next = DCConnectionGetNextReceived(connection);
+                    DCConnectionAddOutgoing(channel->client, next);
+                }
+            }
+            break;
         case kDCConnectionCallbackTypeConnectionEOF:
             log_trace("closing connection=%p\n", connection);
             DCConnectionClose(channel->client);
@@ -115,10 +101,17 @@ void DCChannelSetupWithFD(DCChannelRef channel, CFSocketNativeHandle fd) {
 
     DCConnectionContext context;
     context.info = channel;
+
     DCConnectionSetClient(channel->client,
                           kDCConnectionCallbackTypeIncomingMessage |
                           kDCConnectionCallbackTypeConnectionEOF,
-                          __DCChannelConnectionCallback,
+                          __DCChannelClientConnectionCallback,
+                          &context);
+
+    DCConnectionSetClient(channel->server,
+                          kDCConnectionCallbackTypeIncomingMessage |
+                          kDCConnectionCallbackTypeConnectionEOF,
+                          __DCChannelServerConnectionCallback,
                           &context);
 
     DCConnectionSetupWithFD(channel->client, fd);
