@@ -41,12 +41,19 @@ void DCConnectionSetupWithFD(DCConnectionRef connection, CFSocketNativeHandle fd
 void DCConnectionSetupWithHost(DCConnectionRef connection, CFHostRef host, UInt32 port);
 
 void DCConnectionSetTalksTo(DCConnectionRef connection, DCConnectionType type);
+DCConnectionType DCConnectionGetType(DCConnectionRef connection);
+
 void DCConnectionSetClient(DCConnectionRef connection, DCConnectionCallbackEvents events, DCConnectionCallback clientCB, DCConnectionContext *clientContext);
+
+void DCConnectionSetChannel(DCConnectionRef connection, DCChannelRef channel);
+DCChannelRef DCConnectionGetChannel(DCConnectionRef connection);
+
+CFSocketNativeHandle DCConnectionGetNativeHandle(DCConnectionRef connection);
 
 void DCConnectionAddOutgoing(DCConnectionRef connection, CFHTTPMessageRef outgoingMessage);
 
-bool DCConnectionHasReceived(DCConnectionRef connection);
-CFHTTPMessageRef DCConnectionGetNextReceived(DCConnectionRef connection);
+bool DCConnectionHasNext(DCConnectionRef connection);
+CFHTTPMessageRef DCConnectionPopNext(DCConnectionRef connection);
 
 char* DCConnectionCallbackTypeString(DCConnectionCallbackEvents type);
 char* DCConnectionTypeString(DCConnectionType type);

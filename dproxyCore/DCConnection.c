@@ -38,6 +38,7 @@ typedef struct __HTTPReadMessage {
 } __HTTPReadMessage;
 
 struct __DCConnection {
+    CFSocketNativeHandle fd;
     DCConnectionType type;
     DCChannelRef channel;
     CFStreamClientContext streamContext;
@@ -70,6 +71,7 @@ void DCConnectionClose(DCConnectionRef connection) {
 DCConnectionRef DCConnectionCreate(DCChannelRef channel) {
     struct __DCConnection *connection = (struct __DCConnection *) calloc(1, sizeof(struct __DCConnection));
     TRACE(connection);
+    connection->fd = -1;
     connection->recvUnprocessedMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
     connection->recvProcessedMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
     connection->sentMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
@@ -121,11 +123,19 @@ inline char* DCConnectionCallbackTypeString(DCConnectionCallbackEvents type) {
     return "INVALID";
 }
 
-bool DCConnectionHasReceived(DCConnectionRef connection) {
+bool DCConnectionHasNext(DCConnectionRef connection) {
     return CFArrayGetCount(connection->recvUnprocessedMessages) > 0;
 }
 
-CFHTTPMessageRef DCConnectionGetNextReceived(DCConnectionRef connection) {
+DCChannelRef DCConnectionGetChannel(DCConnectionRef connection) {
+    return connection->channel;
+}
+
+void DCConnectionSetChannel(DCConnectionRef connection, DCChannelRef channel) {
+    connection->channel = channel;
+}
+
+CFHTTPMessageRef DCConnectionPopNext(DCConnectionRef connection) {
     CFHTTPMessageRef nextReceived = (CFHTTPMessageRef) CFArrayGetValueAtIndex(connection->recvUnprocessedMessages, 0);
     CFArrayRemoveValueAtIndex(connection->recvUnprocessedMessages, 0);
     CFArrayAppendValue(connection->recvProcessedMessages, nextReceived);
@@ -147,6 +157,9 @@ void DCConnectionSetClient(DCConnectionRef connection, DCConnectionCallbackEvent
     memcpy(&(connection->context), clientContext, sizeof(DCConnectionContext));
 }
 
+DCConnectionType DCConnectionGetType(DCConnectionRef connection) {
+    return connection->type;
+}
 
 static SInt32 __DCConnectionBodyLength(CFHTTPMessageRef message) {
     SInt32 ret = 0;
@@ -222,7 +235,7 @@ static int __DCReadConsumeBytesToMessage(DCConnectionRef connection, const UInt8
                 CFHTTPMessageAppendBytes(connection->readMessage.msg, buffer, toConsume);
 
                 SInt32 bodyLength = __DCConnectionBodyLength(connection->readMessage.msg);
-                log_debug("connection=%p body expected => %d\n", connection, bodyLength);
+                log_trace("connection=%p body expected => %d\n", connection, bodyLength);
 
                 if (bodyLength > 0) {
                     connection->readMessage.state = kHTTPReadMessageStateBody;
@@ -292,15 +305,31 @@ static int __DCReadToMessage(DCConnectionRef connection) {
     do {
         memset(connection->readBuffer, 0, sizeof(connection->readBuffer));
         CFIndex bytesLeft = CFReadStreamRead(connection->readStream, connection->readBuffer, sizeof(connection->readBuffer));
-        dump_hex("CFReadStreamRead", (void*) connection->readBuffer, (int) bytesLeft);
+
+        if (log_get_level() <= LOG_TRACE) {
+            dump_hex("CFReadStreamRead", (void*) connection->readBuffer, (int) bytesLeft);
+        }
+
         nbrMessagesCompleted += __DCReadConsumeBytesToMessage(connection, connection->readBuffer, bytesLeft);
     } while (CFReadStreamHasBytesAvailable(connection->readStream));
     return nbrMessagesCompleted;
 }
 
+CFSocketNativeHandle DCConnectionGetNativeHandle(DCConnectionRef connection) {
+    return connection->fd;
+}
+
 static inline void __DCConnectionReadCallback(CFReadStreamRef stream, CFStreamEventType type, void *info) {
     DCConnectionRef connection = (DCConnectionRef) info;
     log_trace("connection=%p, event => %s\n", connection, __CFStreamEventTypeString(type));
+
+    if (connection->fd == -1) {
+        CFDataRef data = CFWriteStreamCopyProperty(connection->writeStream, kCFStreamPropertySocketNativeHandle);
+        CFSocketNativeHandle rawSocket;
+        CFDataGetBytes(data, CFRangeMake(0, sizeof(CFSocketNativeHandle)), (UInt8*)&rawSocket);
+        connection->fd = rawSocket;
+        CFRelease(data);
+    }
 
     switch (type) {
         case kCFStreamEventHasBytesAvailable:
@@ -474,6 +503,7 @@ void DCConnectionSetupWithHost(DCConnectionRef connection, CFHostRef host, UInt3
 
 void DCConnectionSetupWithFD(DCConnectionRef connection, CFSocketNativeHandle fd) {
     TRACE(connection);
+    connection->fd = fd;
     CFStreamCreatePairWithSocket(kCFAllocatorDefault, fd, &connection->readStream, &connection->writeStream);
     __DCFinishSetup(connection);
 }

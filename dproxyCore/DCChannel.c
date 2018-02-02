@@ -44,17 +44,45 @@ static void __DCChannelSetupServer(DCChannelRef channel, CFHTTPMessageRef messag
     DCConnectionSetupWithHost(channel->server, host, channel->port);
 }
 
+static void __DCChannelLogHTTP(DCConnectionRef connection, CFHTTPMessageRef next) {
+    char *type = DCConnectionGetType(connection) == kDCConnectionTypeServer ? "SERVER" : "CLIENT";
+    DCChannelRef channel = DCConnectionGetChannel(connection);
+    CFSocketNativeHandle fd = DCConnectionGetNativeHandle(connection);
+
+    if (log_get_level() <= LOG_DEBUG && (CFHTTPMessageIsRequest(next))){
+        CFStringRef method = CFHTTPMessageCopyRequestMethod(next);
+        CFURLRef reqUrl = CFHTTPMessageCopyRequestURL(next);
+        CFStringRef url = CFURLGetString(reqUrl);
+
+        char buff[BUFSIZ];
+        memset(buff, 0, BUFSIZ);
+        CFStringGetCString(method, buff, BUFSIZ, kCFStringEncodingUTF8);
+
+        char buff2[BUFSIZ];
+        memset(buff2, 0, BUFSIZ);
+        CFStringGetCString(url, buff2, BUFSIZ, kCFStringEncodingUTF8);
+
+        log_debug("%s (fd: %d) (%p) | request => %s %s\n", type, fd, channel, buff, buff2);
+    }
+
+    if (log_get_level() <= LOG_DEBUG && (!CFHTTPMessageIsRequest(next))){
+        CFIndex responseCode = CFHTTPMessageGetResponseStatusCode(next);
+        log_debug("%s (fd: %d) (%p) | response => %d\n", type, fd, channel, responseCode);
+    }
+}
+
 static void __DCChannelClientConnectionCallback(DCConnectionRef connection, DCConnectionCallbackEvents type, CFDataRef address, const void *data, void *info) {
     DCChannelRef channel = (DCChannelRef) info;
-    log_debug("channel=%p, connectionCallback => %p, event => %s\n", channel, connection, DCConnectionCallbackTypeString(type));
+    log_trace("channel=%p, connectionCallback => %p, event => %s\n", channel, connection, DCConnectionCallbackTypeString(type));
 
     switch (type) {
         case kDCConnectionCallbackTypeIncomingMessage:
             {
-                while (DCConnectionHasReceived(connection)) {
-                    CFHTTPMessageRef next = DCConnectionGetNextReceived(connection);
+                while (DCConnectionHasNext(connection)) {
+                    CFHTTPMessageRef next = DCConnectionPopNext(connection);
                     if (!channel->host)
                         __DCChannelSetupServer(channel, next);
+                    __DCChannelLogHTTP(connection, next);
                     DCConnectionAddOutgoing(channel->server, next);
                 }
             }
@@ -71,13 +99,14 @@ static void __DCChannelClientConnectionCallback(DCConnectionRef connection, DCCo
 
 static void __DCChannelServerConnectionCallback(DCConnectionRef connection, DCConnectionCallbackEvents type, CFDataRef address, const void *data, void *info) {
     DCChannelRef channel = (DCChannelRef) info;
-    log_debug("channel=%p, connectionCallback => %p, event => %s\n", channel, connection, DCConnectionCallbackTypeString(type));
+    log_trace("channel=%p, connectionCallback => %p, event => %s\n", channel, connection, DCConnectionCallbackTypeString(type));
 
     switch (type) {
         case kDCConnectionCallbackTypeIncomingMessage:
             {
-                while (DCConnectionHasReceived(connection)) {
-                    CFHTTPMessageRef next = DCConnectionGetNextReceived(connection);
+                while (DCConnectionHasNext(connection)) {
+                    CFHTTPMessageRef next = DCConnectionPopNext(connection);
+                    __DCChannelLogHTTP(connection, next);
                     DCConnectionAddOutgoing(channel->client, next);
                 }
             }
@@ -94,9 +123,11 @@ static void __DCChannelServerConnectionCallback(DCConnectionRef connection, DCCo
 
 void DCChannelSetupWithFD(DCChannelRef channel, CFSocketNativeHandle fd) {
     channel->client = DCConnectionCreate(channel);
+    DCConnectionSetChannel(channel->client, channel);
     DCConnectionSetTalksTo(channel->client, kDCConnectionTypeClient);
 
     channel->server = DCConnectionCreate(channel);
+    DCConnectionSetChannel(channel->server, channel);
     DCConnectionSetTalksTo(channel->server, kDCConnectionTypeServer);
 
     DCConnectionContext context;

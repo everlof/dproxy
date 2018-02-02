@@ -98,8 +98,7 @@ void testFREAD(void)
 }
 
 void NotificationCallback(CFNotificationCenterRef center, void *observer, CFNotificationName name, const void *object, CFDictionaryRef userInfo){
-    printf("Gotification:\n");
-    CFShow(userInfo);
+    // Ignore
 }
 
 /* The main() function for setting up and running the tests.
@@ -122,7 +121,7 @@ int main()
     DCProxyRef proxy = DCProxyCreate(1080);
     DCProxyRunServer(proxy, false);
 
-    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 60, true);
+    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 300, true);
     printf("HAS HANDLED\n");
 
     /* initialize the CUnit test registry */

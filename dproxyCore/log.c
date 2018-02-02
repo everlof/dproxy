@@ -78,6 +78,7 @@ void log_set_fp(FILE *fp) {
 
 
 void log_set_level(int level) {
+    printf("LOG LEVEL %s => %s\n", level_names[L.level], level_names[level]);
     L.level = level;
 }
 

@@ -103,7 +103,7 @@ void* __DCProxyRunServer(void* data) {
 }
 
 bool DCProxyRunServer(DCProxyRef proxy, bool CurrentThread) {
-    log_set_level(LOG_TRACE);
+    log_set_level(LOG_DEBUG);
 
     if (CurrentThread) {
         __DCProxyRunServer((void*) proxy);
