@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<!DOCTYPE tsung SYSTEM "/usr/local/Cellar/tsung/1.7.0/share/tsung/tsung-1.0.dtd">
+<tsung loglevel="notice" version="1.0">
+
+<clients>
+  <client host="localhost" use_controller_vm="true" maxusers="200"/>
+</clients>
+
+<servers>
+  <server host="127.0.0.1" port="1080" type="tcp"></server>
+</servers>
+
+
+<load loop="2">
+    <arrivalphase phase="1" duration="1" unit="minute">
+      <users arrivalrate="5" unit="second"/>
+    </arrivalphase>
+</load>
+
+  <options> 
+  <!-- Thinktime value overrides those set in the session nodes if override=true. -->
+  <!-- <option name="thinktime" value="3" random="true" override="false"></option> -->
+
+  <!-- to set specific ssl_ciphers -->
+  <!--   <default name="ssl_ciphers" value="EXP1024-RC4-SHA,EDH-RSA-DES-CBC3-SHA"></default> -->
+
+  <!-- <option name="tcp_rcv_buffer"  value="4096"></option> -->
+  <!-- <option name="tcp_snd_buffer"  value="4096"></option> -->
+
+  <!-- To start ts_file_server. It can be use later in dynamic
+  substitution using ts_file_server:get_next_line() --> 
+
+  <!-- HTTP parameters -->
+  
+  <!-- If you want to benchmark a proxy server instead of a reguler web server-->
+   <option type="ts_http" name="http_use_server_as_proxy" value="true"/>
+
+   <option type="ts_http" name="user_agent">
+    <user_agent probability="80">Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.7.8) Gecko/20050513 Galeon/1.3.21</user_agent>
+    <user_agent probability="20">Mozilla/5.0 (Windows; U; Windows NT 5.2; fr-FR; rv:1.7.8) Gecko/20050511 Firefox/1.0.4</user_agent>
+   </option>
+  </options> 
+
+<sessions>
+    <session name="es_load" weight="1" type="ts_http">
+      <request>
+        <http url="http://httpbin.org/ip" method="GET"/>
+      </request>
+      <thinktime min="2" max="10" random="true"></thinktime>
+      <request>
+        <http url="http://httpbin.org/bytes/10" method="GET"/>
+      </request>
+    </session>
+</sessions>
+
+</tsung>
