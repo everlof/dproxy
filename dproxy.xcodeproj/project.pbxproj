@@ -18,11 +18,7 @@
 		0C2D170E201A6B04001A8E90 /* DCConnection.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C2D170C201A6B04001A8E90 /* DCConnection.c */; };
 		0C2D170F201A6B04001A8E90 /* DCConnection.h in Headers */ = {isa = PBXBuildFile; fileRef = 0C2D170D201A6B04001A8E90 /* DCConnection.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		0C2D1710201DB806001A8E90 /* utils.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C947BC82013B37600DF3B52 /* utils.c */; };
-		0C947BC120137A9D00DF3B52 /* proxy_channel.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C947BBF20137A9D00DF3B52 /* proxy_channel.c */; };
-		0C947BC42013B07900DF3B52 /* client_connection.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C947BC22013B07900DF3B52 /* client_connection.c */; };
-		0C947BC72013B08400DF3B52 /* server_connection.c in Sources */ = {isa = PBXBuildFile; fileRef = 0C947BC52013B08400DF3B52 /* server_connection.c */; };
 		0CDEBFC9200BB774002BCCF2 /* main.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CDEBFC8200BB774002BCCF2 /* main.c */; };
-		0CDEBFDC200CF9B6002BCCF2 /* proxy.c in Sources */ = {isa = PBXBuildFile; fileRef = 0CDEBFDA200CF9B6002BCCF2 /* proxy.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -58,18 +54,11 @@
 		0C2D170C201A6B04001A8E90 /* DCConnection.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = DCConnection.c; sourceTree = "<group>"; };
 		0C2D170D201A6B04001A8E90 /* DCConnection.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DCConnection.h; sourceTree = "<group>"; };
 		0C947BBE20136F3200DF3B52 /* test.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = test.sh; sourceTree = "<group>"; };
-		0C947BBF20137A9D00DF3B52 /* proxy_channel.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = proxy_channel.c; sourceTree = "<group>"; };
-		0C947BC020137A9D00DF3B52 /* proxy_channel.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = proxy_channel.h; sourceTree = "<group>"; };
-		0C947BC22013B07900DF3B52 /* client_connection.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = client_connection.c; sourceTree = "<group>"; };
-		0C947BC32013B07900DF3B52 /* client_connection.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = client_connection.h; sourceTree = "<group>"; };
-		0C947BC52013B08400DF3B52 /* server_connection.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = server_connection.c; sourceTree = "<group>"; };
-		0C947BC62013B08400DF3B52 /* server_connection.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = server_connection.h; sourceTree = "<group>"; };
 		0C947BC82013B37600DF3B52 /* utils.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = utils.c; sourceTree = "<group>"; };
 		0C947BC92013B37600DF3B52 /* utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utils.h; sourceTree = "<group>"; };
+		0CD2ED682025C5A0000E3D33 /* DCConnection-Private.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "DCConnection-Private.h"; sourceTree = "<group>"; };
 		0CDEBFC5200BB773002BCCF2 /* dproxy */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = dproxy; sourceTree = BUILT_PRODUCTS_DIR; };
 		0CDEBFC8200BB774002BCCF2 /* main.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = main.c; sourceTree = "<group>"; };
-		0CDEBFDA200CF9B6002BCCF2 /* proxy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = proxy.c; sourceTree = "<group>"; };
-		0CDEBFDB200CF9B6002BCCF2 /* proxy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = proxy.h; sourceTree = "<group>"; };
 		0CDEBFF0200DD1A9002BCCF2 /* log.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = log.c; sourceTree = "<group>"; };
 		0CDEBFF1200DD1A9002BCCF2 /* log.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = log.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -130,6 +119,7 @@
 				0C0D093D201A51B5000DFBAF /* DCChannel.h */,
 				0C2D170C201A6B04001A8E90 /* DCConnection.c */,
 				0C2D170D201A6B04001A8E90 /* DCConnection.h */,
+				0CD2ED682025C5A0000E3D33 /* DCConnection-Private.h */,
 			);
 			path = dproxyCore;
 			sourceTree = "<group>";
@@ -167,15 +157,7 @@
 		0CDEBFC7200BB774002BCCF2 /* dproxy */ = {
 			isa = PBXGroup;
 			children = (
-				0C947BC22013B07900DF3B52 /* client_connection.c */,
-				0C947BC32013B07900DF3B52 /* client_connection.h */,
 				0CDEBFC8200BB774002BCCF2 /* main.c */,
-				0C947BBF20137A9D00DF3B52 /* proxy_channel.c */,
-				0C947BC020137A9D00DF3B52 /* proxy_channel.h */,
-				0CDEBFDA200CF9B6002BCCF2 /* proxy.c */,
-				0CDEBFDB200CF9B6002BCCF2 /* proxy.h */,
-				0C947BC52013B08400DF3B52 /* server_connection.c */,
-				0C947BC62013B08400DF3B52 /* server_connection.h */,
 			);
 			path = dproxy;
 			sourceTree = "<group>";
@@ -314,10 +296,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0C947BC120137A9D00DF3B52 /* proxy_channel.c in Sources */,
-				0C947BC42013B07900DF3B52 /* client_connection.c in Sources */,
-				0C947BC72013B08400DF3B52 /* server_connection.c in Sources */,
-				0CDEBFDC200CF9B6002BCCF2 /* proxy.c in Sources */,
 				0CDEBFC9200BB774002BCCF2 /* main.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

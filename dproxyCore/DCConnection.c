@@ -1,4 +1,4 @@
-#include "DCConnection.h"
+#include "DCConnection-Private.h"
 #include "log.h"
 #include "utils.h"
 
@@ -8,65 +8,7 @@
 
 CFStringRef const kDCConnectionReceivedHTTPRequest = CFSTR("DCConnectionReceivedHTTPRequest");
 
-typedef enum __DCConnectionState {
-    kDCConnectionStateNone = 0,
-    kDCConnectionStateAvailable = 1,
-    kDCConnectionStateReading,
-    kDCConnectionStateResolvingHost,
-    kDCConnectionStateSending,
-    kDCConnectionStateCompleted,
-    kDCConnectionStateFailed
-} __DCConnectionState;
-
-typedef struct __HTTPWriteMessage {
-    CFHTTPMessageRef msg;
-    CFDataRef data;
-    CFIndex idx;
-} __HTTPWriteMessage;
-
-typedef enum __HTTPReadMessageState {
-    kHTTPReadMessageStateHeader = 0,
-    kHTTPReadMessageStateBody = 1
-} __HTTPReadMessageState;
-
-typedef struct __HTTPReadMessage {
-    CFHTTPMessageRef msg;
-    __HTTPReadMessageState state;
-    SInt32 bodyLength;
-    CFIndex idx;
-    SInt32 eofLeft;
-} __HTTPReadMessage;
-
-struct __DCConnection {
-    CFSocketNativeHandle fd;
-    DCConnectionType type;
-    DCChannelRef channel;
-    CFStreamClientContext streamContext;
-
-    CFReadStreamRef readStream;
-    __HTTPReadMessage readMessage;
-    UInt8 readBuffer[4*BUFSIZ];
-    CFMutableArrayRef recvUnprocessedMessages;
-    CFMutableArrayRef recvProcessedMessages;
-
-    // Where we write our requests
-    CFWriteStreamRef writeStream;
-    __HTTPWriteMessage writeMessage;
-    CFMutableArrayRef outgoingMessages;
-    CFMutableArrayRef sentMessages;
-
-    DCConnectionContext context;
-    DCConnectionCallback callback;
-    DCConnectionCallbackEvents callbackEvents;
-};
-
-void DCConnectionClose(DCConnectionRef connection) {
-    TRACE(connection);
-    if (connection->readStream) CFReadStreamSetClient(connection->readStream, kCFStreamEventNone, NULL, NULL);
-    if (connection->writeStream) CFWriteStreamSetClient(connection->writeStream, kCFStreamEventNone, NULL, NULL);
-    if (connection->readStream) CFReadStreamClose(connection->readStream);
-    if (connection->writeStream) CFWriteStreamClose(connection->writeStream);
-}
+// MARK: - Lifecycle
 
 DCConnectionRef DCConnectionCreate(DCChannelRef channel) {
     struct __DCConnection *connection = (struct __DCConnection *) calloc(1, sizeof(struct __DCConnection));
@@ -76,6 +18,9 @@ DCConnectionRef DCConnectionCreate(DCChannelRef channel) {
     connection->recvProcessedMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
     connection->sentMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
     connection->outgoingMessages = CFArrayCreateMutable(kCFAllocatorDefault, 10, &kCFTypeArrayCallBacks);
+
+    connection->readStream = NULL;
+    connection->writeStream = NULL;
     return connection;
 }
 
@@ -87,6 +32,20 @@ void DCConnectionRelease(DCConnectionRef connection) {
     if (connection->outgoingMessages) CFRelease(connection->outgoingMessages);
     free(connection);
 }
+
+void DCConnectionClose(DCConnectionRef connection) {
+    TRACE(connection);
+
+    // Unregister clients
+    if (connection->readStream) CFReadStreamSetClient(connection->readStream, kCFStreamEventNone, NULL, NULL);
+    if (connection->writeStream) CFWriteStreamSetClient(connection->writeStream, kCFStreamEventNone, NULL, NULL);
+
+    // Close streams (and underlaying fd since kCFStreamPropertyShouldCloseNativeSocket was set to true)
+    if (connection->readStream) CFReadStreamClose(connection->readStream);
+    if (connection->writeStream) CFWriteStreamClose(connection->writeStream);
+}
+
+// MARK: - Enum to char* helpers
 
 static inline char* __CFStreamEventTypeString(CFStreamEventType type) {
     switch (type)
@@ -123,9 +82,7 @@ inline char* DCConnectionCallbackTypeString(DCConnectionCallbackEvents type) {
     return "INVALID";
 }
 
-bool DCConnectionHasNext(DCConnectionRef connection) {
-    return CFArrayGetCount(connection->recvUnprocessedMessages) > 0;
-}
+// MARK: - GET/SET DCChannel
 
 DCChannelRef DCConnectionGetChannel(DCConnectionRef connection) {
     return connection->channel;
@@ -133,6 +90,31 @@ DCChannelRef DCConnectionGetChannel(DCConnectionRef connection) {
 
 void DCConnectionSetChannel(DCConnectionRef connection, DCChannelRef channel) {
     connection->channel = channel;
+}
+
+// MARK: - GET DCConnectionType
+
+DCConnectionType DCConnectionGetType(DCConnectionRef connection) {
+    return connection->type;
+}
+
+// MARK: - GET Native handle (fd)
+
+CFSocketNativeHandle DCConnectionGetNativeHandle(DCConnectionRef connection) {
+    if (connection->fd == -1 && connection->writeStream) {
+        CFDataRef data = CFWriteStreamCopyProperty(connection->writeStream, kCFStreamPropertySocketNativeHandle);
+        CFSocketNativeHandle rawSocket;
+        CFDataGetBytes(data, CFRangeMake(0, sizeof(CFSocketNativeHandle)), (UInt8*)&rawSocket);
+        connection->fd = rawSocket;
+        CFRelease(data);
+    }
+    return connection->fd;
+}
+
+// MARK: - Processing of incoming messages
+
+bool DCConnectionHasNext(DCConnectionRef connection) {
+    return CFArrayGetCount(connection->recvUnprocessedMessages) > 0;
 }
 
 CFHTTPMessageRef DCConnectionPopNext(DCConnectionRef connection) {
@@ -157,9 +139,7 @@ void DCConnectionSetClient(DCConnectionRef connection, DCConnectionCallbackEvent
     memcpy(&(connection->context), clientContext, sizeof(DCConnectionContext));
 }
 
-DCConnectionType DCConnectionGetType(DCConnectionRef connection) {
-    return connection->type;
-}
+
 
 static SInt32 __DCConnectionBodyLength(CFHTTPMessageRef message) {
     SInt32 ret = 0;
@@ -315,21 +295,11 @@ static int __DCReadToMessage(DCConnectionRef connection) {
     return nbrMessagesCompleted;
 }
 
-CFSocketNativeHandle DCConnectionGetNativeHandle(DCConnectionRef connection) {
-    return connection->fd;
-}
+
 
 static inline void __DCConnectionReadCallback(CFReadStreamRef stream, CFStreamEventType type, void *info) {
     DCConnectionRef connection = (DCConnectionRef) info;
     log_trace("connection=%p, event => %s\n", connection, __CFStreamEventTypeString(type));
-
-    if (connection->fd == -1) {
-        CFDataRef data = CFWriteStreamCopyProperty(connection->writeStream, kCFStreamPropertySocketNativeHandle);
-        CFSocketNativeHandle rawSocket;
-        CFDataGetBytes(data, CFRangeMake(0, sizeof(CFSocketNativeHandle)), (UInt8*)&rawSocket);
-        connection->fd = rawSocket;
-        CFRelease(data);
-    }
 
     switch (type) {
         case kCFStreamEventHasBytesAvailable:
